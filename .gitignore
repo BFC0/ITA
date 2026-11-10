@@ -1,0 +1,13 @@
+/data/
+/artifacts/
+/outputs/
+.env
+.env.*
+!.env.example
+/.venv/
+__pycache__/
+/history/
+/output/
+/secrets/
+*.pem
+*.key
