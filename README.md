@@ -1,17 +1,44 @@
 # ITA
 
-中证 500 指数增强研究项目。项目周期为 5 周，当前处于规划阶段。
+截至 2026-11-17，固定 499 股的分钟窗口和日线端点已完成全期验收，分钟最终版已交付，Alpha158 分钟版已完成全期输入资格核验和六日公式抽检。下一步是生成正式因子值并开展首轮日频验证。历史中证 500 成分及权重和独立收盘竞价量额仍待补证。
 
-- [现行计划 · 5 周与 5 人分工](中证500指数增强项目_5周计划.md)
-- [历史计划 · 8 周 v1.4](中证500指数增强项目_8周计划.md)
-- [模型训练与交付公共要求](shared/model_training_requirements.md)
-- [行情缺失判定与补数规范](shared/market_data_quality.md)
+- [文档导航与文件结构](docs/README.md)
+- [现行计划 · 5 周与 5 人分工](docs/project/中证500指数增强项目_5周计划.md)
+- [分钟数据最终版 · 数据说明](docs/local/final-factor-data.md) · [字段字典](docs/local/final-factor-data-fields.md)
+- [Alpha158 分钟版 · 因子说明与公式](docs/local/minute-alpha158.md) · [输入验收](docs/local/minute-alpha158-fit.md)
 
 ## 唯一数据源
 
-自 2026-11-11 起，ITA 的真实数据研究只使用本节指定的 **TRD_Dalyr 2016–2025 最新验收快照**。清洗主表是特征、标签、风险估计、组合和回测的唯一源数据。缺行核对表用于审计。每次运行固定一个快照，派生数据记录主表快照 ID 和 SHA-256。旧快照和旧派生结果用于历史复现，新研究和重跑从本节指定的快照重新生成派生数据。
+**ITA 的新研究和重跑统一使用分钟数据最终版 final-factor-data-20261116（本地 `outputs/final-factor-data-20261116`）。** 数据集覆盖 2016-01-04 至 2025-12-31、2,430 个市场交易日和固定 499 股，包括 13:56–14:56 分钟窗口、配套日线、分钟资格、交易日历和独立收益标签。所有研究派生量从该版本生成。
 
-- 当前快照 `20261111T171040402190+0800`，覆盖 2016-01-04 至 2025-12-31、499 个沪深证券代码、1,009,083 行。主键为 `instrument`、`Trddt`。开始计算前校验主表 SHA-256 `8f1ed95c5e6f62c2c8f433b8eade3d7858b57d6f7ffcc7ba164264682cd24aff`。 [数据快照说明与校验值](docs/trd-dalyr/RELEASE_NOTES.md)
-- 当前版的 OHLC、前收参考价和限价均为后复权价。撮合和按实际报价计算的费用使用后复权报价除以当日 `price_adjustment_factor`。收盘到收盘的连续日含红利收益使用 `return_total_daily_checked`。开盘到开盘的含红利标签按实际开盘价与持有期公司行动权益计算，缺少所需证据时记录缺口。 [字段字典](docs/trd-dalyr/TRD_Dalyr_数据说明与字段字典.md)
-- 因子公式可复用，因子值须从冻结主表重算。禁止接入独立的 Qlib 行情、L7／课程因子、其他外部数据或用其补值。按市场交易日对齐后计算滞后和收益，按 `research_eligible` 筛选信号日。
-- 本表缺少历史中证 500 成分及权重、全收益指数、行业、财报、FF3 和无风险利率。依赖缺失输入的环节记录为阻断；可继续验收仅用本表可计算的部分。证券样本和派生代理须按实际口径命名。后续新增或更换数据源须经项目负责人明确授权并更新本页。
+- 开跑前按 数据集清单（本地 `outputs/final-factor-data-20261116/manifest.json`） 的 `output_sha256` 核验所用文件，运行清单记录数据集版本和文件哈希。TRD_Dalyr 快照 `20261111T171040402190+0800` 是配套日线的上游，清洗复现按原清单校验上游哈希。历史运行按各自清单复现。
+- 分钟价格为未复权实报，配套日线和收益按各自字段口径使用。信号按 `research_eligible` 和各公式的输入资格生成，未来收盘端点只用于标签及事后核验。字段缺失保留原状态。 [配套日线字段](docs/local/daily-fields.md) · [最终版表结构](docs/local/final-factor-data-fields.md)
+- 历史成分及权重、全收益指数、行业、财报、FF3、无风险利率及独立收盘竞价量额仍缺证。依赖这些输入的正式结果登记阻断。固定 499 股结果按实际样本披露。新增或更换数据源须经项目负责人授权并在此登记。
+
+## 因子口径
+
+**正式因子库采用 Alpha158 分钟版的严格版 158 个表达式。** 每个交易日取源 14:56 标签及同一下午的固定分钟位置，最长回溯至 13:56。逐公式检查字段与偏移，缺失输入和非有限输出留空。共同样本上的因子或模型比较另报覆盖率。
+
+首轮日频研究采用 d 日信号、d+1 收盘执行和 d+2 收盘标签到期的口径。使用最终版 `outcomes.parquet` 中的 `forward_return_d1_d2`，按市场交易日历推进。实际模拟成交及容量需要独立的收盘阶段量额证据。 [输入验收与公式版本](docs/local/minute-alpha158-fit.md)
+
+## 本地运行
+
+真实数据复现需要在项目约定位置放置获准使用的行情快照及验收产物。仓库提供代码、文档和复现入口，文中标注的本地文件供有权限的成员核对。
+
+从 ITA 根目录运行。现有环境已用 Python 3.13 验证。新环境安装 [Python 依赖](requirements.txt) 后可运行抽检。
+
+```powershell
+python -m pip install -r requirements.txt
+python -B scripts/audit.py smoke-01 --smoke
+```
+
+全量复现时换一个新的运行名，去掉 `--smoke`，随后对同一运行执行独立回读。
+
+```powershell
+python -B scripts/audit.py run-01
+python -B scripts/verify.py run-01
+```
+
+[交易所公开日行情试查](docs/local/exchange-pilot.md)可用 `python -B scripts/exchange_pilot.py exchange-01` 重查。该命令会联网访问公开接口。
+
+分钟最终版导出及严格版公式资格复核的命令见 [最终数据说明](docs/local/final-factor-data.md) 和 [Alpha158 分钟版验收](docs/local/minute-alpha158-fit.md)。
